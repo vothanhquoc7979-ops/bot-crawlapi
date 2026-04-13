@@ -12,9 +12,28 @@
         <p class="text-gray-400 mb-8 border-b border-gray-700 pb-4">Tự động cào dữ liệu Vietlott, XS3M và Push thẳng lên Github.</p>
 
         <div class="space-y-6">
+            <!-- Box Config Check -->
+            <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4 text-pink-400 border-b border-gray-700 pb-2">Cấu Hình (Biến Môi Trường)</h2>
+                <div class="space-y-2 text-sm" id="config-box">
+                    <p class="text-gray-400">Đang kiểm tra biến môi trường...</p>
+                </div>
+            </div>
+
+            <!-- Box Lệnh Bot -->
+            <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4 text-blue-400 border-b border-gray-700 pb-2">Danh sách lệnh Telegram Bot</h2>
+                <ul class="list-disc list-inside space-y-1 text-gray-300">
+                    <li><code class="bg-gray-800 text-blue-300 px-1 py-0.5 rounded">/start</code> : Màn hình chào Bot.</li>
+                    <li><code class="bg-gray-800 text-blue-300 px-1 py-0.5 rounded">/crawl today</code> : Chủ động yêu cầu cào dữ liệu mới nhất hôm nay.</li>
+                    <li><code class="bg-gray-800 text-blue-300 px-1 py-0.5 rounded">/crawl YYYY-MM-DD</code> : Cào dữ liệu theo ngày.</li>
+                    <li><code class="bg-gray-800 text-blue-300 px-1 py-0.5 rounded">/status</code> : Xem trạng thái của hệ thống.</li>
+                </ul>
+            </div>
+
             <!-- Box Trạng thái -->
             <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
-                <h2 class="text-xl font-semibold mb-4 text-emerald-400 border-b border-gray-700 pb-2">Trạng Thái Hệ Thống</h2>
+                <h2 class="text-xl font-semibold mb-4 text-emerald-400 border-b border-gray-700 pb-2">Trạng Thái Crawler Node</h2>
                 <div class="space-y-2 text-gray-300" id="status-box">
                     <p>Loading...</p>
                 </div>
@@ -35,6 +54,31 @@
     </div>
 
     <script>
+        async function fetchConfig() {
+            try {
+                const res = await fetch('/api/config-check');
+                const config = await res.json();
+                
+                const box = document.getElementById('config-box');
+                box.innerHTML = `
+                    <div class="flex justify-between border-b border-gray-800 pb-1">
+                        <span class="text-gray-400">TELEGRAM_TOKEN:</span>
+                        <span class="${config.telegram_configured ? 'text-emerald-400' : 'text-red-400 font-bold'}">${config.telegram_configured ? 'Đã thiết lập' : '⚠️ CHƯA CÓ'}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-800 pb-1">
+                        <span class="text-gray-400">GITHUB_TOKEN:</span>
+                        <span class="${config.github_configured ? 'text-emerald-400' : 'text-red-400 font-bold'}">${config.github_configured ? 'Đã thiết lập' : '⚠️ CHƯA CÓ (Sẽ lỗi Deploy)'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">GITHUB_REPO:</span>
+                        <span class="${config.github_repo !== 'CHƯA_CÀI_ĐẶT' ? 'text-blue-300' : 'text-red-400 font-bold'}">${config.github_repo}</span>
+                    </div>
+                `;
+            } catch (e) {
+                console.error("Config fetch error:", e);
+            }
+        }
+
         async function fetchStatus() {
             try {
                 const res = await fetch('/api/status');
@@ -50,9 +94,9 @@
                         <span class="text-gray-400">Thời gian cào gần nhất:</span> 
                         <span class="text-gray-200">${data.last_crawl}</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-400">Kết quả báo cáo cuối:</span> 
-                        <span class="${data.last_status.includes('Thành công') ? 'text-emerald-400 font-bold' : (data.last_status === 'OK' ? 'text-gray-200' : 'text-red-400 font-bold')}">${data.last_status}</span>
+                    <div class="flex justify-between mt-2 flex-col">
+                        <span class="text-gray-400 mb-1">Kết quả báo cáo cuối:</span> 
+                        <span class="${data.last_status.includes('Thành công') ? 'text-emerald-400 font-bold' : (data.last_status === 'OK' ? 'text-gray-200' : 'text-red-400 font-bold p-2 bg-red-900/30 border border-red-700 rounded block break-all text-xs')}">${data.last_status}</span>
                     </div>
                 `;
                 
@@ -75,7 +119,7 @@
             btn.disabled = true;
             btn.classList.add("opacity-50", "cursor-not-allowed");
             
-            logBox.className = "rounded p-4 text-sm font-mono mt-4 bg-yellow-900/30 text-yellow-300 border border-yellow-700";
+            logBox.className = "rounded p-4 text-xs font-mono mt-4 bg-yellow-900/30 text-yellow-300 border border-yellow-700 block break-all";
             logBox.innerText = "⏳ Đang gửi yêu cầu cào dữ liệu...";
             
             try {
@@ -83,22 +127,24 @@
                 const result = await res.json();
                 
                 if (result.status === 'success') {
-                    logBox.className = "rounded p-4 text-sm font-mono mt-4 bg-emerald-900/30 text-emerald-400 border border-emerald-700";
+                    logBox.className = "rounded p-4 text-xs font-mono mt-4 bg-emerald-900/30 text-emerald-400 border border-emerald-700 block break-all";
                     logBox.innerText = "✅ " + result.message;
                 } else {
-                    logBox.className = "rounded p-4 text-sm font-mono mt-4 bg-red-900/30 text-red-400 border border-red-700";
+                    logBox.className = "rounded p-4 text-xs font-mono mt-4 bg-red-900/30 text-red-400 border border-red-700 block break-all";
                     logBox.innerText = "❌ LỖI: " + result.message;
                 }
             } catch (error) {
-                logBox.className = "rounded p-4 text-sm font-mono mt-4 bg-red-900/30 text-red-400 border border-red-700";
+                logBox.className = "rounded p-4 text-xs font-mono mt-4 bg-red-900/30 text-red-400 border border-red-700 block break-all";
                 logBox.innerText = "❌ LỖI MẠNG: " + error.message;
             } finally {
                 btn.innerHTML = "🚀 CHẠY CRAWLER HÔM NAY";
                 fetchStatus();
+                fetchConfig();
             }
         }
 
-        // Tải status lúc đầu bật web
+        // Khởi chạy khi web Load
+        fetchConfig();
         fetchStatus();
         // Tự refresh status mỗi 5 giây
         setInterval(fetchStatus, 5000);

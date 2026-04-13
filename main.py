@@ -52,6 +52,14 @@ async def read_root():
 async def get_status():
     return sys_status
 
+@app.get("/api/config-check")
+async def config_check():
+    return {
+        "telegram_configured": bool(os.getenv("TELEGRAM_TOKEN")),
+        "github_configured": bool(os.getenv("GITHUB_TOKEN")),
+        "github_repo": os.getenv("GITHUB_REPO", "CHƯA_CÀI_ĐẶT")
+    }
+
 @app.post("/api/crawl-today")
 async def api_trigger_crawl():
     if sys_status["is_crawling"]:
@@ -65,13 +73,13 @@ async def api_trigger_crawl():
         data = fetch_lottery_data(date_str)
         sys_status["last_crawl"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        success = push_to_github(date_str, data)
+        success, git_msg = push_to_github(date_str, data)
         if success:
             sys_status["last_status"] = "Thành công (Web UI kích hoạt)"
-            return {"status": "success", "message": "Đã cào và lưu trữ thành công"}
+            return {"status": "success", "message": git_msg}
         else:
-            sys_status["last_status"] = "Thất bại (Lỗi đẩy Git Web UI)"
-            return {"status": "error", "message": "Cào thành công nhưng lỗi Github deploy"}
+            sys_status["last_status"] = f"Lỗi Github: {git_msg}"
+            return {"status": "error", "message": git_msg}
     except Exception as e:
         sys_status["last_status"] = f"Lỗi Python API: {str(e)}"
         return {"status": "error", "message": f"Exception: {str(e)}"}

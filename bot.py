@@ -64,14 +64,13 @@ async def crawl_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sys_status["last_crawl"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Bước 2. Đẩy lên Github
-        success = push_to_github(date_str, data)
+        success, git_msg = push_to_github(date_str, data)
         if success:
-            sys_status["last_status"] = "Thành công (Đã Push)"
-            link = f"https://raw.githubusercontent.com/{os.getenv('GITHUB_REPO')}/{os.getenv('GITHUB_BRANCH', 'main')}/data/{date_str.replace('-', '/')}.json"
-            await update.message.reply_text(f"✅ Hoàn tất! Dữ liệu đã được Deploy.\n\nJSON Link: {link}")
+            sys_status["last_status"] = "Thành công (Đã Push Github)"
+            await update.message.reply_text(f"✅ Hoàn tất!\n\n{git_msg}")
         else:
-            sys_status["last_status"] = "Thất bại (Lỗi đẩy Git)"
-            await update.message.reply_text("❌ Có lỗi khi đẩy file JSON lên Github. Hãy xem logs server.")
+            sys_status["last_status"] = f"Lỗi Github: {git_msg}"
+            await update.message.reply_text(f"❌ Có lỗi khi deploy Git:\n{git_msg}")
             
     except Exception as e:
         sys_status["last_status"] = f"Lỗi Python: {str(e)}"

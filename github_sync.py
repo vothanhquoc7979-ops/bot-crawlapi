@@ -8,14 +8,13 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "") # Ví dụ: username/xoso-data
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 
-def push_to_github(date_str: str, json_data: dict) -> bool:
+def push_to_github(date_str: str, json_data: dict) -> tuple[bool, str]:
     """
     Push data JSON vào kho lưu trữ thông qua Github REST API.
     Sẽ tạo file mới nếu chưa có, hoặc cập nhật nếu đã tồn tại.
     """
     if not GITHUB_TOKEN or not GITHUB_REPO:
-        print("[GITHUB] Thiếu GITHUB_TOKEN hoặc GITHUB_REPO trong file env.")
-        return False
+        return False, "Thiếu biến GITHUB_TOKEN hoặc GITHUB_REPO"
 
     # Tách năm, tháng để tạo thư mục logic. VD: 2026/04/11.json
     year, month, day = date_str.split("-")
@@ -32,9 +31,8 @@ def push_to_github(date_str: str, json_data: dict) -> bool:
     res_get = requests.get(url, headers=headers)
     if res_get.status_code == 200:
         sha = res_get.json().get("sha")
-        print(f"[GITHUB] File {file_path} đã tồn tại. Chuẩn bị ghi đè.")
-    else:
-        print(f"[GITHUB] File {file_path} chưa có. Chuẩn bị tạo mới.")
+    elif res_get.status_code not in [200, 404]:
+        return False, f"Lỗi check file: HTTP {res_get.status_code} - {res_get.json().get('message', '')}"
 
     # 2. Xây dựng payload để Tạo/Cập nhật file
     content_str = json.dumps(json_data, indent=2, ensure_ascii=False)
@@ -51,8 +49,7 @@ def push_to_github(date_str: str, json_data: dict) -> bool:
 
     res_put = requests.put(url, headers=headers, json=payload)
     if res_put.status_code in [200, 201]:
-        print(f"[GITHUB] \u2705 Đã đẩy thành công file {file_path} lên repo {GITHUB_REPO}")
-        return True
+        return True, f"Thành công! JSON URL: https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{file_path}"
     else:
-        print(f"[GITHUB] \u274c Lỗi khi đẩy lên Github: {res_put.status_code} - {res_put.text}")
-        return False
+        error_msg = res_put.json().get("message", res_put.text)
+        return False, f"Lỗi API Github: {res_put.status_code} - {error_msg}"
