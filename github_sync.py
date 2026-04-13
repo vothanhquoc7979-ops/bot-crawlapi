@@ -190,8 +190,9 @@ def push_batch_to_github(files_dict: dict) -> tuple[bool, str]:
             total_pushed += len(chunk)
             
         # 3. Update Ref (Di chuyển cờ nhánh trỏ vào commit cuối)
+        update_ref_url = f"https://api.github.com/repos/{gh_repo}/git/refs/heads/{GITHUB_BRANCH}"
         ref_payload = {"sha": current_commit_sha}
-        res_ref = requests.patch(ref_url, headers=headers, json=ref_payload)
+        res_ref = requests.patch(update_ref_url, headers=headers, json=ref_payload)
         
         if res_ref.status_code != 200:
             return False, f"Lỗi Update Ref: {res_ref.text}"
