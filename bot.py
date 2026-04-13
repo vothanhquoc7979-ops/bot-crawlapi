@@ -27,6 +27,25 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg, parse_mode="Markdown")
 
+async def _background_crawl(update: Update, dates_to_crawl: list, conf: dict):
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, run_crawl_routine, dates_to_crawl)
+    
+    # Render link API gần nhất (lấy ngày cuối cùng trong danh sách)
+    last_date = dates_to_crawl[-1]
+    y, m, d = last_date.split("-")
+    gh_repo = conf.get("GITHUB_REPO", "username/repo")
+    branch = os.getenv("GITHUB_BRANCH", "main")
+    api_link = f"https://raw.githubusercontent.com/{gh_repo}/{branch}/data/{y}/{m}/{d}.json"
+    
+    await update.message.reply_text(
+        f"✅ Đã hoàn tất lệnh cào {len(dates_to_crawl)} ngày!\n\n"
+        f"🔗 **API Mới Nhất ({last_date}):**\n{api_link}\n\n"
+        f"📋 **Báo cáo cuối:**\n`{sys_status['last_status']}`", 
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
+
 async def crawl_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conf = get_config()
     if not conf.get("TELEGRAM_TOKEN") or not conf.get("GITHUB_TOKEN"):
@@ -57,24 +76,8 @@ async def crawl_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"⏳ Bắt đầu cào {len(dates_to_crawl)} ngày (từ {dates_to_crawl[0]} tới {dates_to_crawl[-1]}). Vui lòng gõ /status để xem tiến trình...")
     
-    # Ném task vào Threadpool dưới nền để không treo bot Tele
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, run_crawl_routine, dates_to_crawl)
-    
-    # Render link API gần nhất (lấy ngày cuối cùng trong danh sách)
-    last_date = dates_to_crawl[-1]
-    y, m, d = last_date.split("-")
-    gh_repo = conf.get("GITHUB_REPO", "username/repo")
-    branch = os.getenv("GITHUB_BRANCH", "main")
-    api_link = f"https://raw.githubusercontent.com/{gh_repo}/{branch}/data/{y}/{m}/{d}.json"
-    
-    await update.message.reply_text(
-        f"✅ Đã hoàn tất lệnh cào {len(dates_to_crawl)} ngày!\n\n"
-        f"🔗 **API Mới Nhất ({last_date}):**\n{api_link}\n\n"
-        f"📋 **Báo cáo cuối:**\n`{sys_status['last_status']}`", 
-        parse_mode="Markdown",
-        disable_web_page_preview=True
-    )
+    # Chạy dưới nền Task Asyncio để không block chat của Telegram
+    asyncio.create_task(_background_crawl(update, dates_to_crawl, conf))
 
 def init_telegram_bot() -> Application:
     conf = get_config()
