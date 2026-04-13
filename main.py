@@ -6,7 +6,6 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from bot import init_telegram_bot
-from bot import TELEGRAM_TOKEN
 from crawler import fetch_lottery_data
 from github_sync import push_to_github
 from datetime import datetime
@@ -19,8 +18,11 @@ async def lifespan(app: FastAPI):
     global telegram_bot_app
     print("[SYSTEM] Bắt đầu khởi động server FastAPI...")
     
+    conf = get_config()
+    tele_token = conf.get("TELEGRAM_TOKEN")
+    
     # Khởi chạy bot Telegram trong nền (nếu có TOKEN)
-    if TELEGRAM_TOKEN:
+    if tele_token:
         telegram_bot_app = init_telegram_bot()
         if telegram_bot_app:
             await telegram_bot_app.initialize()
