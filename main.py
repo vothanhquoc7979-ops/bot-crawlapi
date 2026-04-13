@@ -171,13 +171,51 @@ async def api_save_config(data: ConfigData):
         
     return {"status": "success", "message": "Đã lưu cấu hình thành công."}
 
+async def background_crawl_with_notify(dates_to_crawl: list):
+    first_date = dates_to_crawl[0]
+    last_date = dates_to_crawl[-1]
+    date_info = f"ngày {first_date}" if first_date == last_date else f"từ {first_date} đến {last_date}"
+    
+    # 1. Báo bắt đầu
+    if telegram_bot_app and telegram_bot_app.bot:
+        chat_id = get_config().get("TELEGRAM_CHAT_ID")
+        if chat_id:
+            try:
+                msg_start = (
+                    f'<tg-emoji emoji-id="5427009714745513056">⏰</tg-emoji> Có lệnh chạy từ Control Panel UI rồi Quốc Chề ơi.\n'
+                    f'<tg-emoji emoji-id="5368324170671202286">🚀</tg-emoji> T bắt đầu cào {date_info} nhé!'
+                )
+                await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_start, parse_mode="HTML")
+            except: pass
+
+    # 2. Chạy thư viện
+    loop = asyncio.get_event_loop()
+    try:
+        await loop.run_in_executor(None, run_crawl_routine, dates_to_crawl)
+    except Exception as e:
+        print(f"[UI CRAWL] Lỗi CRAWLER: {e}")
+
+    # 3. Báo kết thúc
+    if telegram_bot_app and telegram_bot_app.bot:
+        chat_id = get_config().get("TELEGRAM_CHAT_ID")
+        if chat_id:
+            try:
+                msg_end = (
+                    f'<tg-emoji emoji-id="5368324170671202286">🎉</tg-emoji> Đã cào xong {date_info} rồi nha Quốc Chề.\n'
+                    f'<tg-emoji emoji-id="5427009714745513056">💾</tg-emoji> Đã Push lên Github luôn rồi đó.\n\n'
+                    f'📋 <b>Báo cáo:</b> <code>{sys_status["last_status"]}</code>'
+                )
+                await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end, parse_mode="HTML")
+            except: pass
+
+
 @app.post("/api/crawl-today")
 async def api_trigger_crawl(background_tasks: BackgroundTasks):
     if sys_status["is_crawling"]:
         return {"status": "error", "message": "Crawler đang bận xử lý."}
         
     date_str = datetime.now().strftime("%Y-%m-%d")
-    background_tasks.add_task(run_crawl_routine, [date_str])
+    background_tasks.add_task(background_crawl_with_notify, [date_str])
     return {"status": "success", "message": "Đã xếp lịch cào ngày hôm nay vào tác vụ nền..."}
 
 @app.post("/api/crawl-range")
@@ -190,5 +228,5 @@ async def api_trigger_range(data: RangeData, background_tasks: BackgroundTasks):
     except Exception as e:
         return {"status": "error", "message": f"Ngày chưa hợp lệ: {e}"}
         
-    background_tasks.add_task(run_crawl_routine, dates_to_crawl)
+    background_tasks.add_task(background_crawl_with_notify, dates_to_crawl)
     return {"status": "success", "message": f"Đã bắt đầu chuỗi cào {len(dates_to_crawl)} ngày..."}
