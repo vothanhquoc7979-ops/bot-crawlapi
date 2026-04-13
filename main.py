@@ -36,6 +36,29 @@ async def start_telegram_bot(tele_token: str):
             print("[SYSTEM] Đã khởi chạy quá trình polling Telegram Bot nền.")
             telegram_bot_app = app_bot
 
+from datetime import datetime, timedelta, timezone
+
+async def scheduler_task():
+    # Sử dụng múi giờ Việt Nam (UTC+7) để đảm bảo luôn đúng 20h
+    vn_tz = timezone(timedelta(hours=7))
+    last_run_date = None
+    
+    while True:
+        now = datetime.now(vn_tz)
+        # Quét đúng 20:00 tới 20:05 mỗi ngày
+        if now.hour == 20 and now.minute <= 5:
+            today_str = now.strftime("%Y-%m-%d")
+            if last_run_date != today_str:
+                if not sys_status["is_crawling"]:
+                    print(f"[SCHEDULER] Kích hoạt tiến trình tự động cào cho ngày hôm nay: {today_str}...")
+                    last_run_date = today_str
+                    
+                    # Ném vào luồng chạy như bình thường
+                    loop = asyncio.get_event_loop()
+                    loop.run_in_executor(None, run_crawl_routine, [today_str])
+                    
+        await asyncio.sleep(60) # Cứ 1 phút quét 1 lần
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global telegram_bot_app
@@ -46,10 +69,14 @@ async def lifespan(app: FastAPI):
     
     # Nạp bot lần đầu
     await start_telegram_bot(tele_token)
+    
+    # Khởi chạy Scheduler tự động cào 20:00
+    scheduler = asyncio.create_task(scheduler_task())
             
     yield # Cho phép server FastAPI chạy
     
     print("[SYSTEM] Tắt server...")
+    scheduler.cancel()
     if telegram_bot_app:
         await telegram_bot_app.updater.stop()
         await telegram_bot_app.stop()
