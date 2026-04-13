@@ -13,6 +13,29 @@ from datetime import datetime
 # Biến global lưu context bot
 telegram_bot_app = None
 
+async def start_telegram_bot(tele_token: str):
+    """Khởi chạy hoặc tải lại Telegram Bot"""
+    global telegram_bot_app
+    
+    # Tắt bot cũ nếu có
+    if telegram_bot_app:
+        try:
+            await telegram_bot_app.updater.stop()
+            await telegram_bot_app.stop()
+            await telegram_bot_app.shutdown()
+        except:
+            pass
+        telegram_bot_app = None
+        
+    if tele_token:
+        app_bot = init_telegram_bot()
+        if app_bot:
+            await app_bot.initialize()
+            await app_bot.start()
+            await app_bot.updater.start_polling()
+            print("[SYSTEM] Đã khởi chạy quá trình polling Telegram Bot nền.")
+            telegram_bot_app = app_bot
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global telegram_bot_app
@@ -21,14 +44,8 @@ async def lifespan(app: FastAPI):
     conf = get_config()
     tele_token = conf.get("TELEGRAM_TOKEN")
     
-    # Khởi chạy bot Telegram trong nền (nếu có TOKEN)
-    if tele_token:
-        telegram_bot_app = init_telegram_bot()
-        if telegram_bot_app:
-            await telegram_bot_app.initialize()
-            await telegram_bot_app.start()
-            await telegram_bot_app.updater.start_polling()
-            print("[SYSTEM] Đã khởi chạy quá trình polling Telegram Bot nền.")
+    # Nạp bot lần đầu
+    await start_telegram_bot(tele_token)
             
     yield # Cho phép server FastAPI chạy
     
@@ -86,7 +103,12 @@ async def api_save_config(data: ConfigData):
     if data.repo_name: new_conf["GITHUB_REPO"] = data.repo_name
     
     save_config(new_conf)
-    return {"status": "success", "message": "Đã lưu cấu hình. (Telegram token cần khởi động lại máy chủ để nhận diện)"}
+    
+    if data.tele_token:
+        await start_telegram_bot(data.tele_token)
+        return {"status": "success", "message": "Đã lưu cấu hình. Bot Telegram ĐÃ ĐƯỢC KÍCH HOẠT!"}
+        
+    return {"status": "success", "message": "Đã lưu cấu hình thành công."}
 
 @app.post("/api/crawl-today")
 async def api_trigger_crawl(background_tasks: BackgroundTasks):
