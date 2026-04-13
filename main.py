@@ -48,17 +48,36 @@ async def read_root():
     except Exception as e:
         return HTMLResponse(content=f"<h1>Lỗi tải UI: {e}</h1>")
 
+from config import get_config, save_config
+from pydantic import BaseModel
+
+class ConfigData(BaseModel):
+    github_token: str | None = None
+    tele_token: str | None = None
+    repo_name: str | None = None
+
 @app.get("/api/status")
 async def get_status():
     return sys_status
 
 @app.get("/api/config-check")
 async def config_check():
+    conf = get_config()
     return {
-        "telegram_configured": bool(os.getenv("TELEGRAM_TOKEN")),
-        "github_configured": bool(os.getenv("GITHUB_TOKEN")),
-        "github_repo": os.getenv("GITHUB_REPO", "CHƯA_CÀI_ĐẶT")
+        "telegram_configured": bool(conf.get("TELEGRAM_TOKEN")),
+        "github_configured": bool(conf.get("GITHUB_TOKEN")),
+        "github_repo": conf.get("GITHUB_REPO") or "CHƯA_CÀI_ĐẶT"
     }
+
+@app.post("/api/save-config")
+async def api_save_config(data: ConfigData):
+    new_conf = {}
+    if data.github_token: new_conf["GITHUB_TOKEN"] = data.github_token
+    if data.tele_token: new_conf["TELEGRAM_TOKEN"] = data.tele_token
+    if data.repo_name: new_conf["GITHUB_REPO"] = data.repo_name
+    
+    save_config(new_conf)
+    return {"status": "success", "message": "Đã lưu cấu hình. (Telegram token cần khởi động lại máy chủ để nhận diện)"}
 
 @app.post("/api/crawl-today")
 async def api_trigger_crawl():

@@ -2,27 +2,28 @@ import os
 import requests
 import base64
 import json
+from config import get_config
 
-# Lấy từ biến môi trường của Railway
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
-GITHUB_REPO = os.getenv("GITHUB_REPO", "") # Ví dụ: username/xoso-data
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 
 def push_to_github(date_str: str, json_data: dict) -> tuple[bool, str]:
+    conf = get_config()
+    gh_token = conf.get("GITHUB_TOKEN")
+    gh_repo = conf.get("GITHUB_REPO")
     """
     Push data JSON vào kho lưu trữ thông qua Github REST API.
     Sẽ tạo file mới nếu chưa có, hoặc cập nhật nếu đã tồn tại.
     """
-    if not GITHUB_TOKEN or not GITHUB_REPO:
+    if not gh_token or not gh_repo:
         return False, "Thiếu biến GITHUB_TOKEN hoặc GITHUB_REPO"
 
     # Tách năm, tháng để tạo thư mục logic. VD: 2026/04/11.json
     year, month, day = date_str.split("-")
     file_path = f"data/{year}/{month}/{day}.json"
     
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{file_path}"
+    url = f"https://api.github.com/repos/{gh_repo}/contents/{file_path}"
     headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
+        "Authorization": f"token {gh_token}",
         "Accept": "application/vnd.github.v3+json"
     }
 
@@ -49,7 +50,7 @@ def push_to_github(date_str: str, json_data: dict) -> tuple[bool, str]:
 
     res_put = requests.put(url, headers=headers, json=payload)
     if res_put.status_code in [200, 201]:
-        return True, f"Thành công! JSON URL: https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{file_path}"
+        return True, f"Thành công! JSON URL: https://raw.githubusercontent.com/{gh_repo}/{GITHUB_BRANCH}/{file_path}"
     else:
         error_msg = res_put.json().get("message", res_put.text)
         return False, f"Lỗi API Github: {res_put.status_code} - {error_msg}"

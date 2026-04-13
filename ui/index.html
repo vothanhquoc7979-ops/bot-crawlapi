@@ -15,8 +15,16 @@
             <!-- Box Config Check -->
             <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
                 <h2 class="text-xl font-semibold mb-4 text-pink-400 border-b border-gray-700 pb-2">Cấu Hình (Biến Môi Trường)</h2>
-                <div class="space-y-2 text-sm" id="config-box">
+                <div class="space-y-3 text-sm mb-4" id="config-box">
                     <p class="text-gray-400">Đang kiểm tra biến môi trường...</p>
+                </div>
+                
+                <div class="border-t border-gray-700 pt-3 flex flex-col space-y-2">
+                    <input type="text" id="inp-tele" placeholder="Telegram Bot Token mới (tuỳ chọn)" class="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:outline-none focus:border-pink-500">
+                    <input type="text" id="inp-gh-token" placeholder="Github PAT Token mới (tuỳ chọn)" class="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:outline-none focus:border-pink-500">
+                    <input type="text" id="inp-gh-repo" placeholder="Tên Github Repo mới (Vd: user/repo)" class="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:outline-none focus:border-pink-500">
+                    <button onclick="saveConfig()" class="bg-pink-600 hover:bg-pink-500 text-white font-bold py-2 px-4 rounded w-full mt-2">LƯU CẤU HÌNH</button>
+                    <p id="config-msg" class="text-xs text-center mt-1 hidden"></p>
                 </div>
             </div>
 
@@ -76,6 +84,39 @@
                 `;
             } catch (e) {
                 console.error("Config fetch error:", e);
+            }
+        }
+
+        async function saveConfig() {
+            const tele = document.getElementById('inp-tele').value.trim();
+            const ghToken = document.getElementById('inp-gh-token').value.trim();
+            const ghRepo = document.getElementById('inp-gh-repo').value.trim();
+            const msgBox = document.getElementById('config-msg');
+            
+            msgBox.className = "text-xs text-center mt-1 text-yellow-400 block";
+            msgBox.innerText = "Đang lưu...";
+            
+            const payload = {};
+            if(tele) payload.tele_token = tele;
+            if(ghToken) payload.github_token = ghToken;
+            if(ghRepo) payload.repo_name = ghRepo;
+
+            try {
+                const res = await fetch('/api/save-config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                
+                msgBox.className = "text-xs text-center mt-1 text-emerald-400 block";
+                msgBox.innerText = result.message;
+                
+                // Fetch again to update UI
+                fetchConfig();
+            } catch (e) {
+                msgBox.className = "text-xs text-center mt-1 text-red-400 block";
+                msgBox.innerText = "Lỗi kết nối!";
             }
         }
 
