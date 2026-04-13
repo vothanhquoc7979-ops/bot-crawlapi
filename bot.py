@@ -4,87 +4,71 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-from crawler import fetch_lottery_data
-from github_sync import push_to_github
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
-
-# Kiểm soát trạng thái hệ thống
-sys_status = {
-    "is_crawling": False,
-    "last_crawl": "Chưa có",
-    "last_status": "OK"
-}
+from config import get_config
+from crawler_task import sys_status, parse_date, get_date_range, run_crawl_routine
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        "👋 Chào mừng bạn đến với Bot Quản Lý Xổ Số (Railway Edition)!\n"
-        "Các lệnh:\n"
-        "/crawl today - Cào dư liệu ngày hôm nay\n"
-        "/crawl YYYY-MM-DD - Cào theo ngày cụ thể\n"
-        "/status - Xem trạng thái hệ thống"
+        "👋 Chào mừng bạn đến với Bot Quản Lý Xổ Số (Railway Edition)!\n\n"
+        "📜 **DANH SÁCH LỆNH:**\n"
+        "🔹 `/crawl today` - Cào một ngày duy nhất (hôm nay).\n"
+        "🔹 `/crawl <ngày>` - Cào chuỗi từ <ngày> đến tận hôm nay. (Dùng định dạng DD-MM-YYYY hoặc YYYY-MM-DD).\n"
+        "   👉 *VD: /crawl 10/04/2026*\n\n"
+        "🔹 `/status` - Xem trạng thái máy chủ crawler."
     )
-    await update.message.reply_text(msg)
+    await update.message.reply_text(msg, parse_mode="Markdown")
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        f"🖥️ Trạng Thái Hệ Thống:\n"
-        f"Dang chạy luồng cào: {'Có' if sys_status['is_crawling'] else 'Không'}\n"
-        f"Lần cào cuối: {sys_status['last_crawl']}\n"
-        f"Kết quả cuối: {sys_status['last_status']}"
+        f"🖥️ **Trạng Thái Hệ Thống:**\n\n"
+        f"Đang chạy Crawler: {'⚠️ CÓ' if sys_status['is_crawling'] else '✅ KHÔNG'}\n"
+        f"Đang xử lý tại ngày: `{sys_status['last_crawl']}`\n"
+        f"Trạng thái cuối cùng: `{sys_status['last_status']}`"
     )
-    await update.message.reply_text(msg)
+    await update.message.reply_text(msg, parse_mode="Markdown")
 
 async def crawl_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not TELEGRAM_TOKEN or not os.getenv("GITHUB_TOKEN"):
-        await update.message.reply_text("❌ Thiếu biến môi trường (Telegram hoặc Github token).")
+    conf = get_config()
+    if not conf.get("TELEGRAM_TOKEN") or not conf.get("GITHUB_TOKEN"):
+        await update.message.reply_text("❌ Thiếu biến môi trường cục bộ (Telegram hoặc Github PAT token).")
         return
 
     if sys_status["is_crawling"]:
-        await update.message.reply_text("⚠️ Bot đang bận cào một tác vụ khác. Xin chờ.")
+        await update.message.reply_text("⚠️ Đang bận xử lý một hàng đợi khác. Vui lòng quay lại sau.")
         return
 
-    # Lấy tham số ngày
-    date_str = ""
-    if context.args:
-        if context.args[0] == "today":
-            date_str = datetime.now().strftime("%Y-%m-%d")
-        else:
-            date_str = context.args[0]
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    dates_to_crawl = []
+    
+    if not context.args or context.args[0].lower() == "today":
+        dates_to_crawl = [today_str]
     else:
-        date_str = datetime.now().strftime("%Y-%m-%d")
-
-    # Báo cáo bắt đầu
-    await update.message.reply_text(f"⏳ Bắt đầu cào số liệu cho ngày: {date_str}...")
-    sys_status["is_crawling"] = True
-
-    try:
-        # Bước 1. Cào dữ liệu
-        data = fetch_lottery_data(date_str)
-        sys_status["last_crawl"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Bước 2. Đẩy lên Github
-        success, git_msg = push_to_github(date_str, data)
-        if success:
-            sys_status["last_status"] = "Thành công (Đã Push Github)"
-            await update.message.reply_text(f"✅ Hoàn tất!\n\n{git_msg}")
-        else:
-            sys_status["last_status"] = f"Lỗi Github: {git_msg}"
-            await update.message.reply_text(f"❌ Có lỗi khi deploy Git:\n{git_msg}")
+        try:
+            input_date = context.args[0]
+            # Sẽ cào từ ngày nhập vào cho tới biến today
+            dates_to_crawl = get_date_range(input_date, today_str)
+        except Exception as e:
+            await update.message.reply_text(f"❌ Lỗi format ngày: {e}")
+            return
             
-    except Exception as e:
-        sys_status["last_status"] = f"Lỗi Python: {str(e)}"
-        await update.message.reply_text(f"❌ Lỗi Exception: {str(e)}")
-    finally:
-        sys_status["is_crawling"] = False
+    if not dates_to_crawl:
+        await update.message.reply_text("❌ Không có ngày nào để cào.")
+        return
+
+    await update.message.reply_text(f"⏳ Bắt đầu cào {len(dates_to_crawl)} ngày (từ {dates_to_crawl[0]} tới {dates_to_crawl[-1]}). Vui lòng gõ /status để xem tiến trình...")
+    
+    # Ném task vào Threadpool dưới nền để không treo bot Tele
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, run_crawl_routine, dates_to_crawl)
 
 def init_telegram_bot() -> Application:
-    """ Khởi tạo đối tượng Application của Telegram """
-    if not TELEGRAM_TOKEN:
+    conf = get_config()
+    token = conf.get("TELEGRAM_TOKEN")
+    if not token:
         print("[WARNING] Không tìm thấy TELEGRAM_TOKEN, bot sẽ không hoạt động.")
         return None
         
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("status", status_cmd))
     app.add_handler(CommandHandler("crawl", crawl_cmd))

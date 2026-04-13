@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from bot import init_telegram_bot, sys_status
+from bot import init_telegram_bot
 from bot import TELEGRAM_TOKEN
 from crawler import fetch_lottery_data
 from github_sync import push_to_github
@@ -50,11 +50,18 @@ async def read_root():
 
 from config import get_config, save_config
 from pydantic import BaseModel
+from fastapi import BackgroundTasks
+import asyncio
+from crawler_task import sys_status, parse_date, get_date_range, run_crawl_routine
 
 class ConfigData(BaseModel):
     github_token: str | None = None
     tele_token: str | None = None
     repo_name: str | None = None
+
+class RangeData(BaseModel):
+    start_date: str
+    end_date: str
 
 @app.get("/api/status")
 async def get_status():
@@ -80,27 +87,23 @@ async def api_save_config(data: ConfigData):
     return {"status": "success", "message": "Đã lưu cấu hình. (Telegram token cần khởi động lại máy chủ để nhận diện)"}
 
 @app.post("/api/crawl-today")
-async def api_trigger_crawl():
+async def api_trigger_crawl(background_tasks: BackgroundTasks):
     if sys_status["is_crawling"]:
         return {"status": "error", "message": "Crawler đang bận xử lý."}
         
-    sys_status["is_crawling"] = True
     date_str = datetime.now().strftime("%Y-%m-%d")
+    background_tasks.add_task(run_crawl_routine, [date_str])
+    return {"status": "success", "message": "Đã xếp lịch cào ngày hôm nay vào tác vụ nền..."}
+
+@app.post("/api/crawl-range")
+async def api_trigger_range(data: RangeData, background_tasks: BackgroundTasks):
+    if sys_status["is_crawling"]:
+        return {"status": "error", "message": "Crawler đang bận xử lý."}
     
-    # Chạy đồng bộ trong luồng này (Nên đưa vào background task bằng asyncio.create_task trong ứng dụng thực tế lớn)
     try:
-        data = fetch_lottery_data(date_str)
-        sys_status["last_crawl"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        success, git_msg = push_to_github(date_str, data)
-        if success:
-            sys_status["last_status"] = "Thành công (Web UI kích hoạt)"
-            return {"status": "success", "message": git_msg}
-        else:
-            sys_status["last_status"] = f"Lỗi Github: {git_msg}"
-            return {"status": "error", "message": git_msg}
+        dates_to_crawl = get_date_range(data.start_date, data.end_date)
     except Exception as e:
-        sys_status["last_status"] = f"Lỗi Python API: {str(e)}"
-        return {"status": "error", "message": f"Exception: {str(e)}"}
-    finally:
-        sys_status["is_crawling"] = False
+        return {"status": "error", "message": f"Ngày chưa hợp lệ: {e}"}
+        
+    background_tasks.add_task(run_crawl_routine, dates_to_crawl)
+    return {"status": "success", "message": f"Đã bắt đầu chuỗi cào {len(dates_to_crawl)} ngày..."}

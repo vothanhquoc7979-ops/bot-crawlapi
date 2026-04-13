@@ -48,12 +48,25 @@
             </div>
 
             <!-- Box Điều khiển -->
-            <div class="flex gap-4">
-                <button id="btn-crawl" onclick="triggerCrawl()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-lg transition-transform transform active:scale-95 shadow-md flex-1 text-lg">
+            <div class="bg-gray-900 rounded-lg p-4 border border-gray-700 flex flex-col gap-4">
+                <button id="btn-crawl" onclick="triggerCrawl()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-lg transition-transform transform active:scale-95 shadow-md w-full text-lg">
                     🚀 CHẠY CRAWLER HÔM NAY
                 </button>
-                <button onclick="fetchStatus()" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors border border-gray-600">
-                    🔄 Refresh
+                
+                <div class="border-t border-gray-700 pt-4 mt-2">
+                    <p class="text-gray-400 text-sm mb-2 text-center">Hoặc Cào Theo Giai Đoạn</p>
+                    <div class="flex gap-2">
+                        <input type="date" id="start_date" class="bg-gray-800 text-white p-2 flex-1 rounded border border-gray-600 focus:outline-none">
+                        <span class="text-gray-500 self-center">đến</span>
+                        <input type="date" id="end_date" class="bg-gray-800 text-white p-2 flex-1 rounded border border-gray-600 focus:outline-none">
+                    </div>
+                    <button id="btn-crawl-range" onclick="triggerCrawlRange()" class="bg-fuchsia-700 hover:bg-fuchsia-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform active:scale-95 shadow-md w-full mt-3">
+                        📅 CHẠY CRAWLER THEO NGÀY
+                    </button>
+                </div>
+                
+                <button onclick="fetchStatus()" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors border border-gray-600 mt-2">
+                    🔄 Refresh Log Khẩn Cấp
                 </button>
             </div>
             
@@ -142,13 +155,54 @@
                 `;
                 
                 document.getElementById('btn-crawl').disabled = data.is_crawling;
+                document.getElementById('btn-crawl-range').disabled = data.is_crawling;
+                
                 if(data.is_crawling) {
                     document.getElementById('btn-crawl').classList.add("opacity-50", "cursor-not-allowed");
+                    document.getElementById('btn-crawl-range').classList.add("opacity-50", "cursor-not-allowed");
                 } else {
                     document.getElementById('btn-crawl').classList.remove("opacity-50", "cursor-not-allowed");
+                    document.getElementById('btn-crawl-range').classList.remove("opacity-50", "cursor-not-allowed");
                 }
             } catch (error) {
                 console.error("Lỗi:", error);
+            }
+        }
+
+        async function triggerCrawlRange() {
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+            
+            if (!startDate || !endDate) return alert("Vui lòng chọn đầy đủ Từ Ngày và Đến Ngày");
+            
+            const btn = document.getElementById('btn-crawl-range');
+            const logBox = document.getElementById('log-message');
+            
+            btn.innerHTML = "⏳ ĐANG XẾP LỊCH...";
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch('/api/crawl-range', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({start_date: startDate, end_date: endDate})
+                });
+                const result = await res.json();
+                
+                if (result.status === 'success') {
+                    logBox.className = "rounded p-4 text-xs font-mono mt-4 bg-emerald-900/30 text-emerald-400 border border-emerald-700 block break-all";
+                    logBox.innerText = "✅ " + result.message;
+                } else {
+                    logBox.className = "rounded p-4 text-xs font-mono mt-4 bg-red-900/30 text-red-400 border border-red-700 block break-all";
+                    logBox.innerText = "❌ LỖI: " + result.message;
+                }
+            } catch (error) {
+                logBox.className = "rounded p-4 text-xs font-mono mt-4 bg-red-900/30 text-red-400 border border-red-700 block break-all";
+                logBox.innerText = "❌ LỖI MẠNG: " + error.message;
+            } finally {
+                btn.innerHTML = "📅 CHẠY CRAWLER THEO NGÀY";
+                fetchStatus();
+                fetchConfig();
             }
         }
 
