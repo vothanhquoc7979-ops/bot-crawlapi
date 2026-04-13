@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xổ Số Bot - Control Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-8">
+    <div class="max-w-2xl mx-auto bg-gray-800 rounded-xl shadow-2xl p-6 border border-gray-700">
+        <h1 class="text-3xl font-bold mb-2 text-indigo-400">Panel Điều Khiển Bot Xổ Số</h1>
+        <p class="text-gray-400 mb-8 border-b border-gray-700 pb-4">Tự động cào dữ liệu Vietlott, XS3M và Push thẳng lên Github.</p>
+
+        <div class="space-y-6">
+            <!-- Box Trạng thái -->
+            <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4 text-emerald-400 border-b border-gray-700 pb-2">Trạng Thái Hệ Thống</h2>
+                <div class="space-y-2 text-gray-300" id="status-box">
+                    <p>Loading...</p>
+                </div>
+            </div>
+
+            <!-- Box Điều khiển -->
+            <div class="flex gap-4">
+                <button id="btn-crawl" onclick="triggerCrawl()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-lg transition-transform transform active:scale-95 shadow-md flex-1 text-lg">
+                    🚀 CHẠY CRAWLER HÔM NAY
+                </button>
+                <button onclick="fetchStatus()" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors border border-gray-600">
+                    🔄 Refresh
+                </button>
+            </div>
+            
+            <div id="log-message" class="hidden rounded p-4 text-sm font-mono mt-4"></div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                
+                const box = document.getElementById('status-box');
+                box.innerHTML = `
+                    <div class="flex justify-between border-b border-gray-700/50 pb-1">
+                        <span class="text-gray-400">Crawler Đang Chạy:</span> 
+                        <span class="${data.is_crawling ? 'text-yellow-400 font-bold' : 'text-gray-200'}">${data.is_crawling ? 'CÓ (Đang cào...)' : 'KHÔNG'}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-700/50 pb-1">
+                        <span class="text-gray-400">Thời gian cào gần nhất:</span> 
+                        <span class="text-gray-200">${data.last_crawl}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Kết quả báo cáo cuối:</span> 
+                        <span class="${data.last_status.includes('Thành công') ? 'text-emerald-400 font-bold' : (data.last_status === 'OK' ? 'text-gray-200' : 'text-red-400 font-bold')}">${data.last_status}</span>
+                    </div>
+                `;
+                
+                document.getElementById('btn-crawl').disabled = data.is_crawling;
+                if(data.is_crawling) {
+                    document.getElementById('btn-crawl').classList.add("opacity-50", "cursor-not-allowed");
+                } else {
+                    document.getElementById('btn-crawl').classList.remove("opacity-50", "cursor-not-allowed");
+                }
+            } catch (error) {
+                console.error("Lỗi:", error);
+            }
+        }
+
+        async function triggerCrawl() {
+            const btn = document.getElementById('btn-crawl');
+            const logBox = document.getElementById('log-message');
+            
+            btn.innerHTML = "⏳ ĐANG XỬ LÝ...";
+            btn.disabled = true;
+            btn.classList.add("opacity-50", "cursor-not-allowed");
+            
+            logBox.className = "rounded p-4 text-sm font-mono mt-4 bg-yellow-900/30 text-yellow-300 border border-yellow-700";
+            logBox.innerText = "⏳ Đang gửi yêu cầu cào dữ liệu...";
+            
+            try {
+                const res = await fetch('/api/crawl-today', {method: 'POST'});
+                const result = await res.json();
+                
+                if (result.status === 'success') {
+                    logBox.className = "rounded p-4 text-sm font-mono mt-4 bg-emerald-900/30 text-emerald-400 border border-emerald-700";
+                    logBox.innerText = "✅ " + result.message;
+                } else {
+                    logBox.className = "rounded p-4 text-sm font-mono mt-4 bg-red-900/30 text-red-400 border border-red-700";
+                    logBox.innerText = "❌ LỖI: " + result.message;
+                }
+            } catch (error) {
+                logBox.className = "rounded p-4 text-sm font-mono mt-4 bg-red-900/30 text-red-400 border border-red-700";
+                logBox.innerText = "❌ LỖI MẠNG: " + error.message;
+            } finally {
+                btn.innerHTML = "🚀 CHẠY CRAWLER HÔM NAY";
+                fetchStatus();
+            }
+        }
+
+        // Tải status lúc đầu bật web
+        fetchStatus();
+        // Tự refresh status mỗi 5 giây
+        setInterval(fetchStatus, 5000);
+    </script>
+</body>
+</html>
