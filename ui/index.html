@@ -23,6 +23,7 @@
                     <input type="text" id="inp-tele" placeholder="Telegram Bot Token mới (tuỳ chọn)" class="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:outline-none focus:border-pink-500">
                     <input type="text" id="inp-gh-token" placeholder="Github PAT Token mới (tuỳ chọn)" class="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:outline-none focus:border-pink-500">
                     <input type="text" id="inp-gh-repo" placeholder="Tên Github Repo mới (Vd: user/repo)" class="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:outline-none focus:border-pink-500">
+                    <textarea id="inp-proxies" rows="3" placeholder="Danh sách Proxies (mỗi dòng 1 proxy)&#10;Format: IP:PORT:USER:PASS hoặc IP:PORT" class="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:outline-none focus:border-pink-500 text-sm whitespace-pre" spellcheck="false"></textarea>
                     <button onclick="saveConfig()" class="bg-pink-600 hover:bg-pink-500 text-white font-bold py-2 px-4 rounded w-full mt-2">LƯU CẤU HÌNH</button>
                     <p id="config-msg" class="text-xs text-center mt-1 hidden"></p>
                 </div>
@@ -94,6 +95,10 @@
                         <span class="text-gray-400">GITHUB_REPO:</span>
                         <span class="${config.github_repo !== 'CHƯA_CÀI_ĐẶT' ? 'text-blue-300' : 'text-red-400 font-bold'}">${config.github_repo}</span>
                     </div>
+                    <div class="flex justify-between border-t border-gray-800 pt-1 mt-1">
+                        <span class="text-gray-400">Dàn Proxies:</span>
+                        <span class="${config.proxies_count > 0 ? 'text-emerald-400' : 'text-gray-500'}">${config.proxies_count || 0} proxies hoạt động</span>
+                    </div>
                 `;
             } catch (e) {
                 console.error("Config fetch error:", e);
@@ -110,9 +115,11 @@
             msgBox.innerText = "Đang lưu...";
             
             const payload = {};
+            const proxiesStr = document.getElementById('inp-proxies').value.trim();
             if(tele) payload.tele_token = tele;
             if(ghToken) payload.github_token = ghToken;
             if(ghRepo) payload.repo_name = ghRepo;
+            if(proxiesStr) payload.proxies = proxiesStr;
 
             try {
                 const res = await fetch('/api/save-config', {

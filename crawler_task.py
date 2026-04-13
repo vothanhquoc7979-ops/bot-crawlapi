@@ -1,7 +1,7 @@
 import time
 from datetime import datetime, timedelta
 from crawler import fetch_lottery_data
-from github_sync import push_to_github
+from github_sync import push_batch_to_github
 import concurrent.futures
 
 sys_status = {
@@ -59,27 +59,26 @@ def run_crawl_routine(dates: list[str]):
                 fetched_count += 1
                 sys_status["last_status"] = f"Đang nạp dữ liệu vào RAM ({fetched_count}/{total})..."
         
-        # Bước 2: Push tuần tự lên Github
-        for idx, d in enumerate(dates, 1):
-            sys_status["last_status"] = f"Đang đẩy lên Github: ngày {d} ({idx}/{total})..."
-            data = fetched_results.get(d)
-            sys_status["last_crawl"] = d
-            
-            if data is None:
+        # Bước 2: Push Batch (Gộp chung) lên Github siêu tốc
+        valid_files = {}
+        for d in dates:
+            if fetched_results.get(d):
+                valid_files[d] = fetched_results[d]
+                sys_status["last_crawl"] = d
+            else:
                 fail_count += 1
-                continue
                 
-            success, msg = push_to_github(d, data)
-            if success: 
-                success_count += 1
-            else: 
-                fail_count += 1
-                print(f"[CRAWLER_TASK] Lỗi khi push ngày {d}: {msg}")
-            
-            # Khựng lại một nhịp nhỏ trước khi push file tiếp theo (Tránh Github 409 Conflict)
-            time.sleep(0.3)
-            
-        sys_status["last_status"] = f"Hoàn thành chuỗi: Thành công {success_count}/{total} ngày. Lỗi {fail_count}."
+        if valid_files:
+            sys_status["last_status"] = f"Đang nén {len(valid_files)} ngày vào 1 khối (Tree API) đẩy lên Github..."
+            success, msg = push_batch_to_github(valid_files)
+            if success:
+                success_count = len(valid_files)
+                sys_status["last_status"] = f"Hoàn thành chuỗi siêu tốc: Thành công {success_count}/{total} ngày. Lỗi {fail_count}."
+            else:
+                fail_count += len(valid_files)
+                sys_status["last_status"] = f"Lỗi lúc đẩy Github: {msg}"
+        else:
+            sys_status["last_status"] = f"Hoàn thành chuỗi: Không có dữ liệu hợp lệ. Lỗi {fail_count}."
     except Exception as e:
         sys_status["last_status"] = f"Lỗi Exception nghiêm trọng: {str(e)}"
         print(f"[CRAWLER_TASK] Lỗi: {e}")

@@ -4,6 +4,8 @@ import hashlib
 import requests
 import json
 from datetime import datetime
+from config import get_config
+import random
 
 SECRET = "xs365-api-sign-key-2026"
 BASE_URL = "https://ketqua.plus"
@@ -18,6 +20,28 @@ def gen_sig(method, path):
     ).hexdigest()
     return sig, ts
 
+def get_random_proxy():
+    conf = get_config()
+    proxies = conf.get("PROXIES", [])
+    if not proxies or not isinstance(proxies, list):
+        return None
+        
+    p = random.choice(proxies).strip()
+    if not p: return None
+    
+    parts = p.split(":")
+    # Format: host:port:user:pass
+    if len(parts) == 4:
+        host, port, user, pwd = parts
+        proxy_url = f"http://{user}:{pwd}@{host}:{port}"
+    # Format: host:port
+    elif len(parts) == 2:
+        proxy_url = f"http://{p}"
+    else:
+        proxy_url = f"http://{p}" # fallback
+        
+    return {"http": proxy_url, "https": proxy_url}
+
 def call_api(path):
     url = f"{BASE_URL}{path}"
     sig, ts = gen_sig("GET", path)
@@ -29,12 +53,19 @@ def call_api(path):
         "accept": "application/json"
     }
     
+    proxy_dict = get_random_proxy()
+    
     try:
-        res = requests.get(url, headers=headers, timeout=15)
+        if proxy_dict:
+            res = requests.get(url, headers=headers, proxies=proxy_dict, timeout=20)
+        else:
+            res = requests.get(url, headers=headers, timeout=15)
+            
         res.raise_for_status()
         return res.json()
     except Exception as e:
-        print(f"[CRAWLER ERROR] Lỗi khi gọi API: {e}")
+        prx_info = f" (Proxy: {proxy_dict['http']})" if proxy_dict else ""
+        print(f"[CRAWLER ERROR] Lỗi khi gọi API{prx_info}: {e}")
         return None
 
 def fetch_lottery_data(date_str: str):

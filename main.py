@@ -77,6 +77,7 @@ class ConfigData(BaseModel):
     github_token: str | None = None
     tele_token: str | None = None
     repo_name: str | None = None
+    proxies: str | None = None
 
 class RangeData(BaseModel):
     start_date: str
@@ -89,10 +90,12 @@ async def get_status():
 @app.get("/api/config-check")
 async def config_check():
     conf = get_config()
+    proxies_list = conf.get("PROXIES", [])
     return {
         "telegram_configured": bool(conf.get("TELEGRAM_TOKEN")),
         "github_configured": bool(conf.get("GITHUB_TOKEN")),
-        "github_repo": conf.get("GITHUB_REPO") or "CHƯA_CÀI_ĐẶT"
+        "github_repo": conf.get("GITHUB_REPO") or "CHƯA_CÀI_ĐẶT",
+        "proxies_count": len(proxies_list) if isinstance(proxies_list, list) else 0
     }
 
 @app.post("/api/save-config")
@@ -101,6 +104,9 @@ async def api_save_config(data: ConfigData):
     if data.github_token: new_conf["GITHUB_TOKEN"] = data.github_token
     if data.tele_token: new_conf["TELEGRAM_TOKEN"] = data.tele_token
     if data.repo_name: new_conf["GITHUB_REPO"] = data.repo_name
+    if data.proxies is not None:
+        raw_list = [p.strip() for p in data.proxies.split("\n") if p.strip()]
+        new_conf["PROXIES"] = raw_list
     
     save_config(new_conf)
     
