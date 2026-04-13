@@ -4,7 +4,36 @@ import base64
 import json
 from config import get_config
 
+import copy
+
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
+
+def get_core_for_compare(d: dict):
+    c = copy.deepcopy(d)
+    c.pop("timestamp", None)
+    return json.dumps(c, sort_keys=True)
+
+def merge_datasets(old_d: dict, new_d: dict) -> dict:
+    merged = copy.deepcopy(old_d) if isinstance(old_d, dict) else {}
+    if "date" not in merged: merged["date"] = new_d.get("date")
+    if "xs" not in merged: merged["xs"] = {"bac":[], "trung":[], "nam":[]}
+    if "vietlott" not in merged: merged["vietlott"] = {}
+    
+    # Bổ sung XS nếu thiếu
+    for r in ["bac", "trung", "nam"]:
+        od_len = len(merged.get("xs", {}).get(r, []))
+        nd = new_d.get("xs", {}).get(r, [])
+        if nd and len(nd) >= od_len:
+            merged["xs"][r] = nd
+            
+    # Bổ sung Vietlott nếu thiếu
+    for game in ["mega645", "power655", "max3d", "max3dpro", "lotto535"]:
+        nd = new_d.get("vietlott", {}).get(game)
+        if nd:
+            merged["vietlott"][game] = nd
+            
+    merged["timestamp"] = new_d.get("timestamp")
+    return merged
 
 def push_to_github(date_str: str, json_data: dict) -> tuple[bool, str]:
     conf = get_config()
@@ -30,13 +59,31 @@ def push_to_github(date_str: str, json_data: dict) -> tuple[bool, str]:
     # 1. Kiểm tra xem file đã tồn tại chưa để lấy chỉ số SHA (bắt buộc khi update)
     sha = None
     res_get = requests.get(url, headers=headers)
+    old_data = None
+    
     if res_get.status_code == 200:
-        sha = res_get.json().get("sha")
+        file_info = res_get.json()
+        sha = file_info.get("sha")
+        content_b64 = file_info.get("content", "")
+        if content_b64:
+            try:
+                old_data_str = base64.b64decode(content_b64).decode('utf-8')
+                old_data = json.loads(old_data_str)
+            except:
+                old_data = None
     elif res_get.status_code not in [200, 404]:
         return False, f"Lỗi check file: HTTP {res_get.status_code} - {res_get.json().get('message', '')}"
 
+    if old_data:
+        merged_data = merge_datasets(old_data, json_data)
+        if get_core_for_compare(old_data) == get_core_for_compare(merged_data):
+            return True, f"Bỏ qua (Skip): Dữ liệu ngày {date_str} trên Github đã đầy đủ."
+        final_data = merged_data
+    else:
+        final_data = json_data
+
     # 2. Xây dựng payload để Tạo/Cập nhật file
-    content_str = json.dumps(json_data, indent=2, ensure_ascii=False)
+    content_str = json.dumps(final_data, indent=2, ensure_ascii=False)
     content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
 
     payload = {
