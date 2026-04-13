@@ -59,7 +59,9 @@ async def crawl_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Ném task vào Threadpool dưới nền để không treo bot Tele
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, run_crawl_routine, dates_to_crawl)
+    await loop.run_in_executor(None, run_crawl_routine, dates_to_crawl)
+    
+    await update.message.reply_text(f"✅ Đã hoàn tất lệnh cào {len(dates_to_crawl)} ngày!\n\n📋 Báo cáo cuối:\n`{sys_status['last_status']}`", parse_mode="Markdown")
 
 def init_telegram_bot() -> Application:
     conf = get_config()
