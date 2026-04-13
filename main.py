@@ -63,7 +63,10 @@ async def scheduler_task():
                                     '<tg-emoji emoji-id="5368324170671202286">🚀</tg-emoji> T bắt đầu cào nhé!'
                                 )
                                 await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_start, parse_mode="HTML")
-                            except: pass
+                            except Exception as e:
+                                msg_start_fb = "⏰ Đến hẹn 8h tối rồi Quốc Chề ơi.\n🚀 T bắt đầu cào nhé!"
+                                try: await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_start_fb)
+                                except: pass
 
                     # Ném vào luồng chạy như bình thường
                     loop = asyncio.get_event_loop()
@@ -83,7 +86,14 @@ async def scheduler_task():
                                     f'📋 <b>Báo cáo:</b> <code>{sys_status["last_status"]}</code>'
                                 )
                                 await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end, parse_mode="HTML")
-                            except: pass
+                            except Exception as e:
+                                msg_end_fb = (
+                                    f'🎉 Đã cào xong hết rồi nha Quốc Chề.\n'
+                                    f'💾 Đã Push lên Github luôn rồi đó.\n\n'
+                                    f'📋 Báo cáo: {sys_status["last_status"]}'
+                                )
+                                try: await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end_fb)
+                                except: pass
 
         await asyncio.sleep(60) # Cứ 1 phút quét 1 lần
 
@@ -186,7 +196,13 @@ async def background_crawl_with_notify(dates_to_crawl: list):
                     f'<tg-emoji emoji-id="5368324170671202286">🚀</tg-emoji> T bắt đầu cào {date_info} nhé!'
                 )
                 await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_start, parse_mode="HTML")
-            except: pass
+            except Exception as e:
+                print(f"[TELEGRAM_ERR] Không thể gửi msg_start (Có thể do Lỗi Custom Emoji): {e}")
+                # Fallback gửi không có tg-emoji
+                msg_start_fallback = f"⏰ Có lệnh chạy từ Control Panel UI rồi Quốc Chề ơi.\n🚀 T bắt đầu cào {date_info} nhé!"
+                try: 
+                    await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_start_fallback)
+                except: pass
 
     # 2. Chạy thư viện
     loop = asyncio.get_event_loop()
@@ -206,7 +222,16 @@ async def background_crawl_with_notify(dates_to_crawl: list):
                     f'📋 <b>Báo cáo:</b> <code>{sys_status["last_status"]}</code>'
                 )
                 await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end, parse_mode="HTML")
-            except: pass
+            except Exception as e:
+                print(f"[TELEGRAM_ERR] Không thể gửi msg_end: {e}")
+                msg_end_fb = (
+                    f'🎉 Đã cào xong {date_info} rồi nha Quốc Chề.\n'
+                    f'💾 Đã Push lên Github luôn rồi đó.\n\n'
+                    f'📋 Báo cáo: {sys_status["last_status"]}'
+                )
+                try:
+                    await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end_fb)
+                except: pass
 
 
 @app.post("/api/crawl-today")

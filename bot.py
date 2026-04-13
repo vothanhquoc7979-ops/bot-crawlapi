@@ -46,7 +46,9 @@ async def _background_crawl(update: Update, dates_to_crawl: list, conf: dict):
         f'<tg-emoji emoji-id="5427009714745513056">⏰</tg-emoji> Lệnh từ Telegram nhận được rồi Quốc Chề ơi.\n'
         f'<tg-emoji emoji-id="5368324170671202286">🚀</tg-emoji> T bắt đầu cào {date_info} nhé!'
     )
-    await update.message.reply_html(msg_start)
+    try: await update.message.reply_html(msg_start)
+    except Exception:
+        await update.message.reply_text(f"⏰ Lệnh từ Telegram nhận được rồi Quốc Chề ơi.\n🚀 T bắt đầu cào {date_info} nhé!")
 
     try:
         loop = asyncio.get_event_loop()
@@ -63,7 +65,16 @@ async def _background_crawl(update: Update, dates_to_crawl: list, conf: dict):
             f'🔗 <b>API Mới Nhất ({last_date}):</b>\n{api_link}\n\n'
             f'📋 <b>Báo cáo:</b> <code>{sys_status["last_status"]}</code>'
         )
-        await update.message.reply_html(msg_end, disable_web_page_preview=True)
+        try: await update.message.reply_html(msg_end, disable_web_page_preview=True)
+        except Exception:
+            msg_end_fb = (
+                f'🎉 Đã cào xong {date_info} rồi nha Quốc Chề.\n'
+                f'💾 Đã Push lên Github luôn rồi đó.\n\n'
+                f'🔗 API Mới Nhất ({last_date}):\n{api_link}\n\n'
+                f'📋 Báo cáo: {sys_status["last_status"]}'
+            )
+            await update.message.reply_text(msg_end_fb, disable_web_page_preview=True)
+            
     except Exception as e:
         import traceback
         err_msg = traceback.format_exc()
