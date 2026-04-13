@@ -37,50 +37,58 @@ def run_crawl_routine(dates: list[str]):
     total = len(dates)
     success_count = 0
     fail_count = 0
+    CHUNK_SIZE = 500
     
     try:
-        sys_status["last_status"] = f"Đang cào dữ liệu {total} ngày (Đa luồng 10 Threads)..."
+        total_chunks = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
         
-        # Bước 1: Fetch song song
-        fetched_results = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_date = {executor.submit(fetch_data_worker, d): d for d in dates}
-            fetched_count = 0
+        for chunk_idx in range(0, total, CHUNK_SIZE):
+            chunk_dates = dates[chunk_idx : chunk_idx + CHUNK_SIZE]
+            current_chunk = (chunk_idx // CHUNK_SIZE) + 1
             
-            for future in concurrent.futures.as_completed(future_to_date):
-                d = future_to_date[future]
-                try:
-                    data = future.result()
-                    fetched_results[d] = data
-                except Exception as exc:
-                    print(f"Ngày {d} fetch lỗi: {exc}")
-                    fetched_results[d] = None
-                    
-                fetched_count += 1
-                sys_status["last_status"] = f"Đang nạp dữ liệu vào RAM ({fetched_count}/{total})..."
-        
-        # Bước 2: Push Batch (Gộp chung) lên Github siêu tốc
-        valid_files = {}
-        for d in dates:
-            if fetched_results.get(d):
-                valid_files[d] = fetched_results[d]
-                sys_status["last_crawl"] = d
-            else:
-                fail_count += 1
+            # Bước 1: Fetch song song cho gói hiện tại
+            fetched_results = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_date = {executor.submit(fetch_data_worker, d): d for d in chunk_dates}
+                fetched_count = 0
+                sys_status["last_status"] = f"[Gói {current_chunk}/{total_chunks}] Đang cào dữ liệu {len(chunk_dates)} ngày (Đa luồng)..."
                 
-        if valid_files:
-            sys_status["last_status"] = f"Đang nén {len(valid_files)} ngày vào 1 khối (Tree API) đẩy lên Github..."
-            success, msg = push_batch_to_github(valid_files)
-            if success:
-                success_count = len(valid_files)
-                sys_status["last_status"] = f"Hoàn thành chuỗi siêu tốc: Thành công {success_count}/{total} ngày. Lỗi {fail_count}."
-            else:
-                fail_count += len(valid_files)
-                sys_status["last_status"] = f"Lỗi lúc đẩy Github: {msg}"
-        else:
-            sys_status["last_status"] = f"Hoàn thành chuỗi: Không có dữ liệu hợp lệ. Lỗi {fail_count}."
+                for future in concurrent.futures.as_completed(future_to_date):
+                    d = future_to_date[future]
+                    try:
+                        data = future.result()
+                        fetched_results[d] = data
+                    except Exception as exc:
+                        print(f"Ngày {d} fetch lỗi: {exc}")
+                        fetched_results[d] = None
+                        
+                    fetched_count += 1
+                    sys_status["last_status"] = f"[Gói {current_chunk}/{total_chunks}] Đang nạp RAM ({fetched_count}/{len(chunk_dates)})..."
+            
+            # Bước 2: Push Batch gói hiện tại lên Github
+            valid_files = {}
+            for d in chunk_dates:
+                if fetched_results.get(d):
+                    valid_files[d] = fetched_results[d]
+                    sys_status["last_crawl"] = d
+                else:
+                    fail_count += 1
+                    
+            if valid_files:
+                sys_status["last_status"] = f"[Gói {current_chunk}/{total_chunks}] Đang nén {len(valid_files)} ngày vào Github..."
+                success, msg = push_batch_to_github(valid_files)
+                if success:
+                    success_count += len(valid_files)
+                else:
+                    fail_count += len(valid_files)
+                    sys_status["last_status"] = f"[Gói {current_chunk}/{total_chunks}] Lỗi đẩy Github: {msg}"
+            
+        sys_status["last_status"] = f"Hoàn thành chuỗi siêu tốc: Thành công {success_count}/{total} ngày. Lỗi {fail_count}."
+            
     except Exception as e:
         sys_status["last_status"] = f"Lỗi Exception nghiêm trọng: {str(e)}"
         print(f"[CRAWLER_TASK] Lỗi: {e}")
+        # Re-raise to let bot.py catch it
+        raise e
     finally:
         sys_status["is_crawling"] = False
