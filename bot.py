@@ -18,23 +18,46 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_config(new_conf)
 
     msg = (
-        "👋 Chào mừng bạn đến với Bot Quản Lý Xổ Số (Railway Edition)!\n\n"
-        "📜 **DANH SÁCH LỆNH:**\n"
-        "🔹 `/crawl today` - Cào một ngày duy nhất (hôm nay).\n"
-        "🔹 `/crawl <ngày>` - Cào chuỗi từ <ngày> đến tận hôm nay. (Dùng định dạng DD-MM-YYYY hoặc YYYY-MM-DD).\n"
-        "   👉 *VD: /crawl 10/04/2026*\n\n"
-        "🔹 `/status` - Xem trạng thái máy chủ crawler."
+        f'<tg-emoji emoji-id="5368324170671202288">👋</tg-emoji> <b>Chào mừng bạn đến với Bot Quản Lý Xổ Số (Railway Edition)!</b>\n\n'
+        f'<tg-emoji emoji-id="5368324170671202289">📜</tg-emoji> <b>DANH SÁCH LỆNH:</b>\n'
+        f'🔹 <code>/crawl today</code> - Cào một ngày duy nhất (hôm nay).\n'
+        f'🔹 <code>/crawl &lt;ngày&gt;</code> - Cào chuỗi từ &lt;ngày&gt; đến tận hôm nay. (Dùng định dạng DD-MM-YYYY hoặc YYYY-MM-DD).\n'
+        f'   👉 <i>VD: /crawl 10/04/2026</i>\n\n'
+        f'🔹 <code>/status</code> - Xem trạng thái lệnh crawler.\n\n'
+        f'---\n'
+        f'<tg-emoji emoji-id="5368324170671202290">✅</tg-emoji> <b>Đã thu thập thành công ID của bạn để Auto-Crawl gửi tin nhắn!</b>\n'
+        f'🔑 <b>ID Telegram:</b> <code>{chat_id}</code>'
     )
-    await update.message.reply_text(msg, parse_mode="Markdown")
+    
+    msg_fb = (
+        f'👋 Chào mừng bạn đến với Bot Quản Lý Xổ Số (Railway Edition)!\n\n'
+        f'📜 DANH SÁCH LỆNH:\n'
+        f'🔹 /crawl today - Cào một ngày duy nhất (hôm nay).\n'
+        f'🔹 /crawl <ngày> - Cào chuỗi từ <ngày> đến tận hôm nay. (Dùng định dạng DD-MM-YYYY hoặc YYYY-MM-DD).\n'
+        f'   👉 VD: /crawl 10/04/2026\n\n'
+        f'🔹 /status - Xem trạng thái lệnh crawler.\n\n'
+        f'---\n'
+        f'✅ Đã thu thập thành công ID của bạn để Auto-Crawl gửi tin nhắn!\n'
+        f'🔑 ID Telegram: {chat_id}'
+    )
+    try: await update.message.reply_html(msg)
+    except Exception: await update.message.reply_text(msg_fb)
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        f"🖥️ **Trạng Thái Hệ Thống:**\n\n"
-        f"Đang chạy Crawler: {'⚠️ CÓ' if sys_status['is_crawling'] else '✅ KHÔNG'}\n"
-        f"Đang xử lý tại ngày: `{sys_status['last_crawl']}`\n"
-        f"Trạng thái cuối cùng: `{sys_status['last_status']}`"
+        f'<tg-emoji emoji-id="5368324170671202291">🖥️</tg-emoji> <b>Trạng Thái Hệ Thống:</b>\n\n'
+        f'Đang chạy Crawler: {"<tg-emoji emoji-id=\\"5368324170671202291\\">⚠️</tg-emoji> CÓ" if sys_status["is_crawling"] else "<tg-emoji emoji-id=\\"5368324170671202290\\">✅</tg-emoji> KHÔNG"}\n'
+        f'Đang xử lý tại ngày: <code>{sys_status["last_crawl"]}</code>\n'
+        f'Trạng thái cuối cùng: <code>{sys_status["last_status"]}</code>'
     )
-    await update.message.reply_text(msg, parse_mode="Markdown")
+    msg_fb = (
+        f'🖥️ **Trạng Thái Hệ Thống:**\n\n'
+        f'Đang chạy Crawler: {"⚠️ CÓ" if sys_status["is_crawling"] else "✅ KHÔNG"}\n'
+        f'Đang xử lý tại ngày: `{sys_status["last_crawl"]}`\n'
+        f'Trạng thái cuối cùng: `{sys_status["last_status"]}`'
+    )
+    try: await update.message.reply_html(msg)
+    except Exception: await update.message.reply_text(msg_fb, parse_mode="Markdown")
 
 async def _background_crawl(update: Update, dates_to_crawl: list, conf: dict):
     first_date = dates_to_crawl[0]
@@ -84,11 +107,13 @@ async def _background_crawl(update: Update, dates_to_crawl: list, conf: dict):
 async def crawl_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conf = get_config()
     if not conf.get("TELEGRAM_TOKEN") or not conf.get("GITHUB_TOKEN"):
-        await update.message.reply_text("❌ Thiếu biến môi trường cục bộ (Telegram hoặc Github PAT token).")
+        try: await update.message.reply_html('<tg-emoji emoji-id="5368324170671202292">❌</tg-emoji> <b>Thiếu biến môi trường cục bộ (Telegram hoặc Github PAT token).</b>')
+        except: await update.message.reply_text("❌ Thiếu biến môi trường cục bộ (Telegram hoặc Github PAT token).")
         return
 
     if sys_status["is_crawling"]:
-        await update.message.reply_text("⚠️ Đang bận xử lý một hàng đợi khác. Vui lòng quay lại sau.")
+        try: await update.message.reply_html('<tg-emoji emoji-id="5368324170671202291">⚠️</tg-emoji> <b>Đang bận xử lý một hàng đợi khác. Vui lòng quay lại sau.</b>')
+        except: await update.message.reply_text("⚠️ Đang bận xử lý một hàng đợi khác. Vui lòng quay lại sau.")
         return
 
     today_str = datetime.now().strftime("%Y-%m-%d")
@@ -99,17 +124,20 @@ async def crawl_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         try:
             input_date = context.args[0]
-            # Sẽ cào từ ngày nhập vào cho tới biến today
             dates_to_crawl = get_date_range(input_date, today_str)
         except Exception as e:
-            await update.message.reply_text(f"❌ Lỗi format ngày: {e}")
+            try: await update.message.reply_html(f'<tg-emoji emoji-id="5368324170671202292">❌</tg-emoji> <b>Lỗi format ngày:</b> <code>{e}</code>')
+            except: await update.message.reply_text(f"❌ Lỗi format ngày: {e}")
             return
             
     if not dates_to_crawl:
-        await update.message.reply_text("❌ Không có ngày nào để cào.")
+        try: await update.message.reply_html('<tg-emoji emoji-id="5368324170671202292">❌</tg-emoji> <b>Không có ngày nào để cào.</b>')
+        except: await update.message.reply_text("❌ Không có ngày nào để cào.")
         return
 
-    await update.message.reply_text(f"⏳ Bắt đầu cào {len(dates_to_crawl)} ngày (từ {dates_to_crawl[0]} tới {dates_to_crawl[-1]}). Vui lòng gõ /status để xem tiến trình...")
+    msg = f'<tg-emoji emoji-id="5427009714745513056">⏳</tg-emoji> <b>Bắt đầu xếp lịch cào {len(dates_to_crawl)} ngày (từ {dates_to_crawl[0]} tới {dates_to_crawl[-1]})...</b>'
+    try: await update.message.reply_html(msg)
+    except: await update.message.reply_text(f"⏳ Bắt đầu xếp lịch cào {len(dates_to_crawl)} ngày (từ {dates_to_crawl[0]} tới {dates_to_crawl[-1]})...")
     
     # Chạy dưới nền Task Asyncio để không block chat của Telegram
     asyncio.create_task(_background_crawl(update, dates_to_crawl, conf))
