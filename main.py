@@ -1,14 +1,18 @@
 import asyncio
 import os
+import html
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from datetime import datetime, timedelta, timezone
 
 from bot import init_telegram_bot
-from crawler import fetch_lottery_data
+from crawler import fetch_lottery_data, get_random_proxy
 from github_sync import push_to_github
-from datetime import datetime
+from config import get_config, save_config
+from crawler_task import sys_status, parse_date, get_date_range, run_crawl_routine
 
 # Biến global lưu context bot
 telegram_bot_app = None
@@ -79,18 +83,19 @@ async def scheduler_task():
                     if telegram_bot_app and telegram_bot_app.bot:
                         chat_id = get_config().get("TELEGRAM_CHAT_ID")
                         if chat_id:
+                            status_escaped = html.escape(str(sys_status["last_status"]))
                             try:
                                 msg_end = (
                                     '<tg-emoji emoji-id="5368324170671202286">🎉</tg-emoji> Đã cào xong hết rồi nha Quốc Chề.\n'
                                     '<tg-emoji emoji-id="5427009714745513056">💾</tg-emoji> Đã Push lên Github luôn rồi đó.\n\n'
-                                    f'📋 <b>Báo cáo:</b> <code>{sys_status["last_status"]}</code>'
+                                    f'📋 <b>Báo cáo:</b> <code>{status_escaped}</code>'
                                 )
                                 await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end, parse_mode="HTML")
                             except Exception as e:
                                 msg_end_fb = (
                                     f'🎉 Đã cào xong hết rồi nha Quốc Chề.\n'
                                     f'💾 Đã Push lên Github luôn rồi đó.\n\n'
-                                    f'📋 Báo cáo: {sys_status["last_status"]}'
+                                    f'📋 Báo cáo: {status_escaped}'
                                 )
                                 try: await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end_fb)
                                 except: pass
@@ -132,11 +137,7 @@ async def read_root():
     except Exception as e:
         return HTMLResponse(content=f"<h1>Lỗi tải UI: {e}</h1>")
 
-from config import get_config, save_config
-from pydantic import BaseModel
-from fastapi import BackgroundTasks
-import asyncio
-from crawler_task import sys_status, parse_date, get_date_range, run_crawl_routine
+# (Dòng 135-140 trong file cũ được thay thế bằng imports ở đầu trang)
 
 class ConfigData(BaseModel):
     github_token: str | None = None
@@ -215,11 +216,12 @@ async def background_crawl_with_notify(dates_to_crawl: list):
     if telegram_bot_app and telegram_bot_app.bot:
         chat_id = get_config().get("TELEGRAM_CHAT_ID")
         if chat_id:
+            status_escaped = html.escape(str(sys_status["last_status"]))
             try:
                 msg_end = (
                     f'<tg-emoji emoji-id="5368324170671202286">🎉</tg-emoji> Đã cào xong {date_info} rồi nha Quốc Chề.\n'
                     f'<tg-emoji emoji-id="5427009714745513056">💾</tg-emoji> Đã Push lên Github luôn rồi đó.\n\n'
-                    f'📋 <b>Báo cáo:</b> <code>{sys_status["last_status"]}</code>'
+                    f'📋 <b>Báo cáo:</b> <code>{status_escaped}</code>'
                 )
                 await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end, parse_mode="HTML")
             except Exception as e:
@@ -227,7 +229,7 @@ async def background_crawl_with_notify(dates_to_crawl: list):
                 msg_end_fb = (
                     f'🎉 Đã cào xong {date_info} rồi nha Quốc Chề.\n'
                     f'💾 Đã Push lên Github luôn rồi đó.\n\n'
-                    f'📋 Báo cáo: {sys_status["last_status"]}'
+                    f'📋 Báo cáo: {status_escaped}'
                 )
                 try:
                     await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end_fb)

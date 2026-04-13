@@ -1,18 +1,19 @@
 import os
 import asyncio
+import traceback
+import html
 from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-from config import get_config
-from crawler_task import sys_status, parse_date, get_date_range, run_crawl_routine
+from config import get_config, save_config
+from crawler_task import sys_status, get_date_range, run_crawl_routine
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.message.chat_id)
     conf = get_config()
     
     if conf.get("TELEGRAM_CHAT_ID") != chat_id:
-        from config import save_config
         new_conf = conf.copy()
         new_conf["TELEGRAM_CHAT_ID"] = chat_id
         save_config(new_conf)
@@ -44,17 +45,24 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception: await update.message.reply_text(msg_fb)
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Tránh lỗi cú pháp f-string và lỗi parse HTML
+    is_crawling_val = sys_status["is_crawling"]
+    last_crawl_val = html.escape(str(sys_status["last_crawl"]))
+    last_status_val = html.escape(str(sys_status["last_status"]))
+    
+    crawl_icon = '<tg-emoji emoji-id="5368324170671202291">⚠️</tg-emoji> CÓ' if is_crawling_val else '<tg-emoji emoji-id="5368324170671202290">✅</tg-emoji> KHÔNG'
+    
     msg = (
         f'<tg-emoji emoji-id="5368324170671202291">🖥️</tg-emoji> <b>Trạng Thái Hệ Thống:</b>\n\n'
-        f'Đang chạy Crawler: {"<tg-emoji emoji-id=\\"5368324170671202291\\">⚠️</tg-emoji> CÓ" if sys_status["is_crawling"] else "<tg-emoji emoji-id=\\"5368324170671202290\\">✅</tg-emoji> KHÔNG"}\n'
-        f'Đang xử lý tại ngày: <code>{sys_status["last_crawl"]}</code>\n'
-        f'Trạng thái cuối cùng: <code>{sys_status["last_status"]}</code>'
+        f'Đang chạy Crawler: {crawl_icon}\n'
+        f'Đang xử lý tại ngày: <code>{last_crawl_val}</code>\n'
+        f'Trạng thái cuối cùng: <code>{last_status_val}</code>'
     )
     msg_fb = (
         f'🖥️ **Trạng Thái Hệ Thống:**\n\n'
-        f'Đang chạy Crawler: {"⚠️ CÓ" if sys_status["is_crawling"] else "✅ KHÔNG"}\n'
-        f'Đang xử lý tại ngày: `{sys_status["last_crawl"]}`\n'
-        f'Trạng thái cuối cùng: `{sys_status["last_status"]}`'
+        f'Đang chạy Crawler: {"⚠️ CÓ" if is_crawling_val else "✅ KHÔNG"}\n'
+        f'Đang xử lý tại ngày: `{last_crawl_val}`\n'
+        f'Trạng thái cuối cùng: `{last_status_val}`'
     )
     try: await update.message.reply_html(msg)
     except Exception: await update.message.reply_text(msg_fb, parse_mode="Markdown")
@@ -86,7 +94,7 @@ async def _background_crawl(update: Update, dates_to_crawl: list, conf: dict):
             f'<tg-emoji emoji-id="5368324170671202286">🎉</tg-emoji> Đã cào xong {date_info} rồi nha Quốc Chề.\n'
             f'<tg-emoji emoji-id="5427009714745513056">💾</tg-emoji> Đã Push lên Github luôn rồi đó.\n\n'
             f'🔗 <b>API Mới Nhất ({last_date}):</b>\n{api_link}\n\n'
-            f'📋 <b>Báo cáo:</b> <code>{sys_status["last_status"]}</code>'
+            f'📋 <b>Báo cáo:</b> <code>{html.escape(str(sys_status["last_status"]))}</code>'
         )
         try: await update.message.reply_html(msg_end, disable_web_page_preview=True)
         except Exception:
@@ -98,9 +106,8 @@ async def _background_crawl(update: Update, dates_to_crawl: list, conf: dict):
             )
             await update.message.reply_text(msg_end_fb, disable_web_page_preview=True)
             
-    except Exception as e:
-        import traceback
-        err_msg = traceback.format_exc()
+    except Exception:
+        err_msg = html.escape(traceback.format_exc())
         if len(err_msg) > 3000: err_msg = err_msg[-3000:] 
         await update.message.reply_html(f"🛑 <b>LỖI HỆ THỐNG GÂY TREO BOT:</b>\n<code>\n{err_msg}\n</code>")
 
@@ -126,7 +133,8 @@ async def crawl_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             input_date = context.args[0]
             dates_to_crawl = get_date_range(input_date, today_str)
         except Exception as e:
-            try: await update.message.reply_html(f'<tg-emoji emoji-id="5368324170671202292">❌</tg-emoji> <b>Lỗi format ngày:</b> <code>{e}</code>')
+            err_str = html.escape(str(e))
+            try: await update.message.reply_html(f'<tg-emoji emoji-id="5368324170671202292">❌</tg-emoji> <b>Lỗi format ngày:</b> <code>{err_str}</code>')
             except: await update.message.reply_text(f"❌ Lỗi format ngày: {e}")
             return
             
