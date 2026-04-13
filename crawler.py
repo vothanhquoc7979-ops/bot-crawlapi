@@ -50,13 +50,12 @@ def fetch_lottery_data(date_str: str):
     }
     
     # Lấy XS 3 Miền
-    xs_path = f"/api/public/lottery/by-date?date={date_str}&region=all"
-    xs_data = call_api(xs_path)
-    
-    if xs_data:
-        results["xs"]["bac"] = xs_data.get("bac", [])
-        results["xs"]["trung"] = xs_data.get("trung", [])
-        results["xs"]["nam"] = xs_data.get("nam", [])
+    for region in ["bac", "trung", "nam"]:
+        xs_path = f"/api/public/lottery/by-date?date={date_str}&region={region}"
+        xs_data = call_api(xs_path)
+        if xs_data and isinstance(xs_data, dict):
+            # API trả về luôn dict chứa key là tên đài (ví dụ {"bac": [...] })
+            results["xs"][region] = xs_data.get(region, [])
 
     # Lấy Vietlott
     vietlott_games = ["mega645", "power655", "max3d", "max3dpro", "lotto535"]
