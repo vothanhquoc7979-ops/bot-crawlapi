@@ -53,10 +53,38 @@ async def scheduler_task():
                     print(f"[SCHEDULER] Kích hoạt tiến trình tự động cào cho ngày hôm nay: {today_str}...")
                     last_run_date = today_str
                     
+                    # Cố gắng nhắn tin Tới Bot trước khi cào
+                    if telegram_bot_app and telegram_bot_app.bot:
+                        chat_id = get_config().get("TELEGRAM_CHAT_ID")
+                        if chat_id:
+                            try:
+                                msg_start = (
+                                    '<tg-emoji emoji-id="5427009714745513056">⏰</tg-emoji> Đến hẹn 8h tối rồi Quốc Chề ơi.\n'
+                                    '<tg-emoji emoji-id="5368324170671202286">🚀</tg-emoji> T bắt đầu cào nhé!'
+                                )
+                                await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_start, parse_mode="HTML")
+                            except: pass
+
                     # Ném vào luồng chạy như bình thường
                     loop = asyncio.get_event_loop()
-                    loop.run_in_executor(None, run_crawl_routine, [today_str])
-                    
+                    try:
+                        await loop.run_in_executor(None, run_crawl_routine, [today_str])
+                    except Exception as e:
+                        print(f"[SCHEDULER] Lỗi CRAWLER: {e}")
+                        
+                    # Nhắn tin Tới Bot sau khi cào xong (Dù lỗi hay không cũng báo xong)
+                    if telegram_bot_app and telegram_bot_app.bot:
+                        chat_id = get_config().get("TELEGRAM_CHAT_ID")
+                        if chat_id:
+                            try:
+                                msg_end = (
+                                    '<tg-emoji emoji-id="5368324170671202286">🎉</tg-emoji> Đã cào xong hết rồi nha Quốc Chề.\n'
+                                    '<tg-emoji emoji-id="5427009714745513056">💾</tg-emoji> Đã Push lên Github luôn rồi đó.\n\n'
+                                    f'📋 <b>Báo cáo:</b> <code>{sys_status["last_status"]}</code>'
+                                )
+                                await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_end, parse_mode="HTML")
+                            except: pass
+
         await asyncio.sleep(60) # Cứ 1 phút quét 1 lần
 
 @asynccontextmanager

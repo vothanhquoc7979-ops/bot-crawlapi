@@ -8,6 +8,15 @@ from config import get_config
 from crawler_task import sys_status, parse_date, get_date_range, run_crawl_routine
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.message.chat_id)
+    conf = get_config()
+    
+    if conf.get("TELEGRAM_CHAT_ID") != chat_id:
+        from config import save_config
+        new_conf = conf.copy()
+        new_conf["TELEGRAM_CHAT_ID"] = chat_id
+        save_config(new_conf)
+
     msg = (
         "👋 Chào mừng bạn đến với Bot Quản Lý Xổ Số (Railway Edition)!\n\n"
         "📜 **DANH SÁCH LỆNH:**\n"
