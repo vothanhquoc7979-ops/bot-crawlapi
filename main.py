@@ -49,8 +49,8 @@ async def scheduler_task():
     
     while True:
         now = datetime.now(vn_tz)
-        # Quét đúng 20:00 tới 20:05 mỗi ngày
-        if now.hour == 20 and now.minute <= 5:
+        # Quét đúng 22:00 tới 22:05 mỗi ngày
+        if now.hour == 22 and now.minute <= 5:
             today_str = now.strftime("%Y-%m-%d")
             if last_run_date != today_str:
                 if not sys_status["is_crawling"]:
@@ -63,12 +63,12 @@ async def scheduler_task():
                         if chat_id:
                             try:
                                 msg_start = (
-                                    '<tg-emoji emoji-id="5427009714745513056">⏰</tg-emoji> Đến hẹn 8h tối rồi Quốc Chề ơi.\n'
+                                    '<tg-emoji emoji-id="5427009714745513056">⏰</tg-emoji> Đến hẹn 10h tối rồi Quốc Chề ơi.\n'
                                     '<tg-emoji emoji-id="5368324170671202286">🚀</tg-emoji> T bắt đầu cào nhé!'
                                 )
                                 await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_start, parse_mode="HTML")
                             except Exception as e:
-                                msg_start_fb = "⏰ Đến hẹn 8h tối rồi Quốc Chề ơi.\n🚀 T bắt đầu cào nhé!"
+                                msg_start_fb = "⏰ Đến hẹn 10h tối rồi Quốc Chề ơi.\n🚀 T bắt đầu cào nhé!"
                                 try: await telegram_bot_app.bot.send_message(chat_id=chat_id, text=msg_start_fb)
                                 except: pass
 
@@ -113,7 +113,7 @@ async def lifespan(app: FastAPI):
     # Nạp bot lần đầu
     await start_telegram_bot(tele_token)
     
-    # Khởi chạy Scheduler tự động cào 20:00
+    # Khởi chạy Scheduler tự động cào 22:00
     scheduler = asyncio.create_task(scheduler_task())
             
     yield # Cho phép server FastAPI chạy
